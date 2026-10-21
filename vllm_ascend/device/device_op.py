@@ -1283,6 +1283,11 @@ class A5DeviceAdaptor(BaseDeviceAdaptor):
         expansion_mode = os.environ.get("HCCL_OP_EXPANSION_MODE")
         if expansion_mode == "CCU_SCHED":
             comm_mode = "ccu"
+        elif expansion_mode == "AIV":
+            # LOCAL WORKAROUND (Ascend950DT): the AICPU comm engine cannot start
+            # on this platform (RunAicpuIndOpThreadInit fails with an AICPU
+            # exception), so honor the AIV request instead of the ai_cpu default.
+            comm_mode = "aiv"
 
         return torch_npu.npu_mm_reduce_scatter_base(
             x1,

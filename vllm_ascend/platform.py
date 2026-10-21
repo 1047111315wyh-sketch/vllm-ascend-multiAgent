@@ -31,6 +31,14 @@ from vllm.platforms import Platform, PlatformEnum
 # todo: please remove it when solve cuda hard code in vllm
 os.environ["VLLM_DISABLE_SHARED_EXPERTS_STREAM"] = "1"
 
+# LOCAL WORKAROUND (Ascend950DT, tensor parallel > 1): HCCL's default AICPU_TS
+# comm engine cannot start on this platform -- RunAicpuCommInit raises an AICPU
+# exception (retCode=0x2a) on the first collective, which kills every TP>1
+# group. AIV works instead (verified with a standalone allreduce on 950DT).
+# Every process imports this module before creating HCCL communicators, so the
+# default is set here as well as in the launch script.
+os.environ.setdefault("HCCL_OP_EXPANSION_MODE", "AIV")
+
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
 from vllm_ascend.ascend_config import init_ascend_config

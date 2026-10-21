@@ -34,7 +34,13 @@ def tensor_parallel_wrap(func):
 
 def forward_with_split_qkv_rmsnorm_mrope(self, positions: torch.Tensor, hidden_states: torch.Tensor):
     qkv, _ = self.qkv_proj(hidden_states)
-    if isinstance(self.rotary_emb, AscendMRotaryEmbedding):
+    # LOCAL WORKAROUND (Ascend950DT, TP>1): the fused mrope kernel assumes the
+    # unsharded head layout and crashes on AICPU (E39999) under tensor parallel.
+    # The TP-aware variant (split_qkv_tp_rmsnorm_rope) has no mrope support in
+    # 0.23.0, so fall back to the standard unfused path whenever TP is enabled.
+    from vllm.distributed import get_tensor_model_parallel_world_size
+
+    if isinstance(self.rotary_emb, AscendMRotaryEmbedding) and get_tensor_model_parallel_world_size() == 1:
         cos_sin = self.rotary_emb.cos_sin_cache[positions]
         if cos_sin.device != qkv.device:
             cos_sin = cos_sin.to(qkv.device)

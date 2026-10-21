@@ -1092,8 +1092,23 @@ def create_hccl_pg_options(group_name: str):
     options = torch_npu._C._distributed_c10d.ProcessGroupHCCL.Options()
     hccl_config = get_hccl_config_for_pg_options(group_name) or {}
     hccl_config["group_name"] = group_name
+    hccl_config["hccl_op_expansion_mode"] = _get_op_expansion_mode()
     options.hccl_config = hccl_config
     return options
+
+
+# LOCAL WORKAROUND (Ascend950DT): HCCL's default AICPU_TS comm engine cannot
+# start on this platform -- RunAicpuCommInit fails with an AICPU exception
+# ("get kernel failed", retCode=0x2a), which breaks every tensor-parallel
+# group. AIV works. The value has to be passed explicitly in hccl_config here:
+# this dict overrides the HCCL_OP_EXPANSION_MODE environment variable, and an
+# unset key means "platform default", i.e. the broken AICPU_TS engine.
+_OP_EXPANSION_MODE_VALUES = {"host": 1, "aicpu": 2, "aiv": 3}
+
+
+def _get_op_expansion_mode() -> int:
+    mode = os.environ.get("HCCL_OP_EXPANSION_MODE", "").strip().lower()
+    return _OP_EXPANSION_MODE_VALUES.get(mode, 3)
 
 
 def get_hccl_config_for_pg_options(group_name: str) -> dict | None:
